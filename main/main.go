@@ -15,6 +15,12 @@ import (
 	"github.com/pkg/errors"
 )
 
+type DbCollections struct {
+	ReportColl    *report.DB
+	MetricColl    *report.DB
+	InventoryColl *report.DB
+}
+
 func main() {
 	// Load environment-file.
 	// Env vars will be read directly from environment if this file fails loading
@@ -34,7 +40,9 @@ func main() {
 
 		"MONGO_HOSTS",
 		"MONGO_DATABASE",
-		"MONGO_COLLECTION",
+		"MONGO_REP_COLLECTION",
+		"MONGO_INV_COLLECTION",
+		"MONGO_METRIC_COLLECTION",
 		"MONGO_TIMEOUT",
 	)
 	if err != nil {
@@ -47,9 +55,9 @@ func main() {
 	username := os.Getenv("MONGO_USERNAME")
 	password := os.Getenv("MONGO_PASSWORD")
 	database := os.Getenv("MONGO_DATABASE")
-	collection := os.Getenv("MONGO_COLLECTION")
-
-	invCollection := os.Getenv("MONGO_INV_COLLECTION")
+	collectionReport := os.Getenv("MONGO_REP_COLLECTION")
+	collectionInv := os.Getenv("MONGO_INV_COLLECTION")
+	collectionMet := os.Getenv("MONGO_METRIC_COLLECTION")
 
 	timeoutMilliStr := os.Getenv("MONGO_TIMEOUT")
 	parsedTimeoutMilli, err := strconv.Atoi(timeoutMilliStr)
@@ -61,23 +69,48 @@ func main() {
 	}
 	timeoutMilli := uint32(parsedTimeoutMilli)
 
-	config := report.DBIConfig{
+	// collections := report.Collections{
+	// 	Report:    collectionReport,
+	// 	Metric:    collectiionMet,
+	// 	Inventory: collectionInv,
+	// }
+
+	configReport := report.DBIConfig{
 		Hosts:               *commonutil.ParseHosts(hosts),
 		Username:            username,
 		Password:            password,
 		TimeoutMilliseconds: timeoutMilli,
 		Database:            database,
-		Collection:          collection,
 	}
 
+	configReport = report.DBIConfig{
+		Collection: collectionReport,
+	}
 	// Init IO
-	db, err := report.ReportDB(config)
+	dbReport, err := report.GenerateDB(configReport, &report.ConfigSchema{
+		Report: &report.Report{},
+	})
 	if err != nil {
 		err = errors.Wrap(err, "Error connecting to Report-DB")
 		log.Println(err)
 		return
 	}
-	kio, err := initKafkaIOLogin()
+
+	dbMetric, err := report.GenerateDB(configReport{
+		Collection: collectionMet,
+	}, &report.Metric{})
+
+	dbInventory, err := report.GenerateDB(configReport{
+		Collection: collectionInv,
+	}, &report.Inventory{})
+
+	db := DbCollections{
+		Report:    dbReport,
+		Metric:    dbMetric,
+		Inventory: dbInventory,
+	}
+
+	kio, err := initKafkaIOReport()
 	if err != nil {
 		err = errors.Wrap(err, "Error creating KafkaIO")
 		log.Println(err)
@@ -105,7 +138,10 @@ func main() {
 }
 
 // handleRequest handles the GraphQL request from HTTP server.
-func handleRequest(db report.DBI, kio *kafka.IO, msg *sarama.ConsumerMessage) {
+func handleRequest(db DbCollections, kio *kafka.IO, msg *sarama.ConsumerMessage) {
+
+	numValues := 10
+
 	// Unmarshal msg to KafkaResponse
 	kr := &esmodel.KafkaResponse{}
 	err := json.Unmarshal(msg.Value, kr)
@@ -129,7 +165,7 @@ func handleRequest(db report.DBI, kio *kafka.IO, msg *sarama.ConsumerMessage) {
 	mReport := make([]byte, 1)
 	errStr := ""
 	//Create report data in db
-	reportData, err = db.CreateReportData()
+	reportData, err = db.Report.CreateReportData(numValues)
 	if err != nil {
 		err = errors.Wrap(err, "Error creating data")
 		log.Println(err)

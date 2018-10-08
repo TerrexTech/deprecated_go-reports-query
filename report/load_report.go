@@ -13,13 +13,13 @@ func init() {
 	rand.Seed(time.Now().UnixNano())
 }
 
-type ModifyReportData struct {
-	eth        Ethylene
-	Datearr    int64
-	Expirydate int64
-	Timestamp  int64
-	Randnum    int64
-}
+// type ModifyReportData struct {
+// 	eth        Ethylene
+// 	Datearr    int64
+// 	Expirydate int64
+// 	Timestamp  int64
+// 	Randnum    int64
+// }
 
 func random(min, max int64) int64 {
 	return rand.Int63n(max-min) + min
@@ -28,6 +28,15 @@ func random(min, max int64) int64 {
 func generateRandomValue(num1, num2 int64) int64 {
 	// rand.Seed(time.Now().Unix())
 	return random(num1, num2)
+}
+
+func randomFloat(min, max float64) float64 {
+	return min + rand.Float64()*(max-min)
+}
+
+func genFloatRandomVal(num1, num2 float64) float64 {
+	// rand.Seed(time.Now().Unix())
+	return randomFloat(num1, num2)
 }
 
 func generateNewUUID() uuuid.UUID {
@@ -42,8 +51,15 @@ func generateNewUUID() uuuid.UUID {
 var productsName = []string{"Banana", "Orange", "Apple", "Mango", "Strawberry", "Tomato", "Lettuce", "Pear", "Grapes", "Sweet Pepper"}
 var locationName = []string{"A101", "B201", "O301", "M401", "S501", "T601", "L701", "P801", "G901", "SW1001"}
 var provinceNames = []string{"ON Canada", "BC Canada", "SK Canada", "MN Canada", "NS Canada", "PEI Canada", "QC Canada"}
+var reportTypes = []string{"Metric", "Inventory"}
 
-func GenDataForReport() Report {
+type GeneratedData struct {
+	RType Report
+	MType Metric
+	IType Inventory
+}
+
+func GenData() GeneratedData {
 
 	randNameAndLocation := generateRandomValue(1, 10)
 	randOrigin := generateRandomValue(1, 6)
@@ -54,40 +70,70 @@ func GenDataForReport() Report {
 	randPrice := generateRandomValue(5000, 10000)
 	randTotalWeight := generateRandomValue(100, 300)
 	randWasteWeight := generateRandomValue(1, 80)
-	randEthylene := generateRandomValue(10, 100)
-	randTempIn := generateRandomValue(20.1, 27.9)
-	randHumidity := generateRandomValue(60, 90)
-	randCarbon := generateRandomValue(400, 1800)
+	randEthylene := genFloatRandomVal(10, 100)
+	randTempIn := genFloatRandomVal(20.1, 27.9)
+	randHumidity := genFloatRandomVal(60, 90)
+	randCarbon := genFloatRandomVal(400, 1800)
 
 	// randProdQuantity := generateRandomValue(100, 300)
+	itemId := generateNewUUID()
+	sku := GenFakeBarcode("sku")
+	deviceId := generateNewUUID()
+	location := locationName[randNameAndLocation]
+	customerId := generateNewUUID()
 
 	report := Report{
+		ItemID:       itemId,
 		ReportID:     generateNewUUID(),
-		ItemID:       generateNewUUID(),
-		SKU:          GenFakeBarcode("sku"),
-		RsCustomerID: generateNewUUID(),
-		DeviceID:     generateNewUUID(),
-		Lot:          locationName[randNameAndLocation],
-		AggregateID:  3,
-		Ethylene:     randEthylene,
-		TempIn:       randTempIn,
-		Humidity:     randHumidity,
-		CarbonDi:     randCarbon,
-		// DateArrived: time.Now().Add(time.Duration(randDateArr) * time.Hour).Unix(),
-		// ExpiryDate:  time.Now().AddDate(0, 0, int(randExpiry)).Unix(),
-		// // Timestamp:    time.Now().Add(time.Duration(randTimestamp) * time.Hour).Unix(),
-		Timestamp: time.Now().Unix(),
-		// // DateSold:     time.Now().Add(time.Duration(randDatesold) * time.Hour).Unix(),
-		// DateSold: time.Now().Add(time.Duration(randDatesold) * time.Hour).Unix(),
-
-		// SalePrice:  float64(generateRandomValue(2, 4)),
-		// SoldWeight: float64(generateRandomValue(randWasteWeight, randTotalWeight)),
+		RsCustomerID: customerId,
+		ReportType:   reportTypes[generateRandomValue(1, 2)],
+		AggregateID:  2,
+		Timestamp:    time.Now().Unix(),
 	}
 
-	// if inventory.Name == "Lettuce" {
-	// 	inventory.ProdQuantity = randProdQuantity
-	// }
-	return ethylene
+	metric := Metric{
+		ItemID:      itemId,
+		DeviceID:    deviceId,
+		AggregateID: 3,
+		Ethylene:    randEthylene,
+		TempIn:      randTempIn,
+		Humidity:    randHumidity,
+		CarbonDi:    randCarbon,
+		Timestamp:   time.Now().Unix(),
+	}
+
+	inventory := Inventory{
+		ItemID:       itemId,
+		UPC:          GenFakeBarcode("upc"),
+		SKU:          sku,
+		RsCustomerID: customerId,
+		DeviceID:     deviceId,
+		Name:         productsName[randNameAndLocation-1], //-1 because rand starts from 1
+		Origin:       provinceNames[randOrigin-1],
+		TotalWeight:  float64(randTotalWeight),
+		Price:        float64(randPrice),
+		Location:     location,
+		WasteWeight:  float64(randWasteWeight - 1),
+		DonateWeight: float64(generateRandomValue(1, 21)),
+		AggregateID:  2,
+		DateArrived:  time.Now().Add(time.Duration(randDateArr) * time.Hour).Unix(),
+		ExpiryDate:   time.Now().AddDate(0, 0, int(randExpiry)).Unix(),
+		// Timestamp:    time.Now().Add(time.Duration(randTimestamp) * time.Hour).Unix(),
+		Timestamp: time.Now().Unix(),
+		// DateSold:     time.Now().Add(time.Duration(randDatesold) * time.Hour).Unix(),
+		DateSold: time.Now().Add(time.Duration(randDatesold) * time.Hour).Unix(),
+
+		SalePrice:  float64(generateRandomValue(2, 4)),
+		SoldWeight: float64(generateRandomValue(randWasteWeight, randTotalWeight)),
+	}
+
+	genDataForDb := GeneratedData{
+		RType: report,
+		MType: metric,
+		IType: inventory,
+	}
+
+	return genDataForDb
 }
 
 func GenFakeBarcode(barType string) int64 {

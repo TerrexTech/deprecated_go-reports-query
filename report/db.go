@@ -7,6 +7,18 @@ import (
 	"github.com/pkg/errors"
 )
 
+// type Collections struct {
+// 	Report    string
+// 	Metric    string
+// 	Inventory string
+// }
+
+type ConfigSchema struct {
+	Report    *Report
+	Metric    *Metric
+	Inventory *Metric
+}
+
 // DBIConfig is the configuration for the authDB.
 type DBIConfig struct {
 	Hosts               []string
@@ -22,7 +34,8 @@ type DBIConfig struct {
 type DBI interface {
 	Collection() *mongo.Collection
 	CreateReportData() (*Report, error)
-	GetReportByDate(search *SearchByDate) (*Report, error)
+	SearchByTimestamp(search *SearchByDate) (*Report, error)
+	SearchByFieldVal(search *[]SearchByFieldVal) (*Report, error)
 
 	// UserByUUID(uid uuuid.UUID) (*User, error)
 	// Login(user *User) (*User, error)
@@ -39,12 +52,12 @@ type SearchByDate struct {
 	StartDate int64 `bson:"start_date,omitempty" json:"start_date,omitempty"`
 }
 
-type ReportSearchFieldVal struct {
+type SearchByFieldVal struct {
 	SearchField string      `bson:"search_field,omitempty" json:"search_field,omitempty"`
 	SearchVal   interface{} `bson:"search_val,omitempty" json:"search_val,omitempty"`
 }
 
-func ReportDB(dbConfig DBIConfig) (*DB, error) {
+func GenerateDB(dbConfig DBIConfig, schema *ConfigSchema) (*DB, error) {
 	config := mongo.ClientConfig{
 		Hosts:               dbConfig.Hosts,
 		Username:            dbConfig.Username,
@@ -67,11 +80,11 @@ func ReportDB(dbConfig DBIConfig) (*DB, error) {
 		mongo.IndexConfig{
 			ColumnConfig: []mongo.IndexColumnConfig{
 				mongo.IndexColumnConfig{
-					Name: "ethylene",
+					Name: "item_id",
 				},
 			},
 			IsUnique: true,
-			Name:     "ethylene_index",
+			Name:     "item_id_index",
 		},
 		mongo.IndexConfig{
 			ColumnConfig: []mongo.IndexColumnConfig{
@@ -90,7 +103,7 @@ func ReportDB(dbConfig DBIConfig) (*DB, error) {
 		Connection:   conn,
 		Database:     dbConfig.Database,
 		Name:         dbConfig.Collection,
-		SchemaStruct: &User{},
+		SchemaStruct: schema,
 		Indexes:      indexConfigs,
 	}
 	c, err := mongo.EnsureCollection(collConfig)
@@ -105,13 +118,14 @@ func ReportDB(dbConfig DBIConfig) (*DB, error) {
 
 // UserByUUID gets the User from DB using specified UUID.
 // An error is returned if no user is found.
-func (d *DB) CreateReportData() (*Report, error) {
+func (db *DB) CreateReportData(numOfVal int) (*[]Report, error) {
 	report := []Report{}
 	for i := 0; i < numOfVal; i++ {
-		report = append(report, GenDataForEth())
+		generatedData := GenData()
+		report = append(report, generatedData.RType)
 	}
 
-	for _, v := range ethylene {
+	for _, v := range report {
 		insertResult, err := db.collection.InsertOne(v)
 		if err != nil {
 			err = errors.Wrap(err, "Unable to insert data")
@@ -120,12 +134,12 @@ func (d *DB) CreateReportData() (*Report, error) {
 		}
 		log.Println(insertResult)
 	}
-	return ethylene, nil
+	return &report, nil
 }
 
-func (db *DB) GetReportByDate(search *[]SearchByDate) (*Report, error) {
+func (db *DB) SearchByTimestamp(search []SearchByDate) (*[]Report, error) {
 	var findResults []interface{}
-
+	var err error
 	for _, val := range search {
 		if val.StartDate != 0 && val.EndDate != 0 {
 			//Find
@@ -164,30 +178,22 @@ func (db *DB) GetReportByDate(search *[]SearchByDate) (*Report, error) {
 		result := v.(*Report)
 		report = append(report, *result)
 	}
-	return report, nil
+	return &report, nil
 }
 
-func (db *DB) SearchByFieldVal(startDate int64, endDate int64) (*Report, error) {
-	reportSearch := []SearchByDate{}
+func (db *DB) SearchByFieldVal(search []SearchByFieldVal) (*[]Report, error) {
 
 	var findResults []interface{}
+	var err error
 
-	if val.StartDate != 0 && val.EndDate != 0 {
-		//Find
-		findResults, err = db.collection.Find(map[string]interface{}{
-			"timestamp": map[string]int64{
-				"$lte": val.EndDate,
-				"$gte": val.StartDate,
-			},
-		})
-	}
-
-	if val.StartDate == 0 && val.EndDate != 0 {
-		findResults, err = db.collection.Find(map[string]interface{}{
-			"timestamp": map[string]int64{
-				"$lte": val.EndDate,
-			},
-		})
+	for _, v := range search {
+		if v.SearchField != "" && v.SearchVal != "" {
+			findResults, err = db.collection.Find(map[string]interface{}{
+				v.SearchField: map[string]interface{}{
+					"$eq": &v.SearchVal,
+				},
+			})
+		}
 	}
 
 	if err != nil {
@@ -208,51 +214,42 @@ func (db *DB) SearchByFieldVal(startDate int64, endDate int64) (*Report, error) 
 		result := v.(*Report)
 		report = append(report, *result)
 	}
-	return report, nil
+	return &report, nil
 }
 
-func (d *DB) GenEthylene() (*Report, error) {
-	report := []Report{}
-
-	for _, v := range ethylene {
-		insertResult, err := db.collection.InsertOne(v)
-		if err != nil {
-			err = errors.Wrap(err, "Unable to insert data")
-			log.Println(err)
-			return nil, err
-		}
-		log.Println(insertResult)
-	}
-	return ethylene, nil
-}
-
-// Login authenticates the provided User.
-// An error is returned if Authentication fails.
-// func (d *DB) Login(user *User) (*User, error) {
-// 	authUser := &User{
-// 		Username: user.Username,
+// func (db *DB) InsertIntoReport(report Report) (*mgo.InsertOneResult, error) {
+// 	uuid, err := uuuid.NewV4()
+// 	if err != nil {
+// 		err = errors.Wrap(err, "Unable to generate UUID")
+// 		log.Println(err)
 // 	}
 
-// 	findResults, err := d.collection.Find(authUser)
+// 	genReport := report{
+// 		ReportID: uuid,
+// 		TempIn:   randTempIn, //from load_report
+// 		Humidity: randHumidity,
+// 		Ethylene: randEthylene,
+// 		CarbonDi: randCarbon,
+// 	}
+
+// 	insertResult, err := db.collection.InsertOne(genReport)
 // 	if err != nil {
-// 		err = errors.Wrap(err, "Login: Error getting user from Database")
+// 		err = errors.Wrap(err, "Unable to insert into Report")
+// 		log.Println(err)
 // 		return nil, err
 // 	}
-// 	if len(findResults) == 0 {
-// 		log.Println("===========================")
-// 		return nil, errors.New("Login: Invalid Credentials")
-// 	}
 
-// 	newUser := findResults[0].(*User)
-// 	passErr := bcrypt.CompareHashAndPassword([]byte(newUser.Password), []byte(user.Password))
-// 	// log.Println("%+v", user)
-// 	if passErr != nil {
-// 		log.Println("++++++++++++++++++++++++++++")
-// 		log.Println(passErr)
-// 		return nil, errors.New("Login: Invalid Credentials")
-// 	}
+// 	return insertResult, nil
 
-// 	return newUser, nil
+// }
+
+// func (db *DB) EthyleneReport(inventory []Inventory) (*Report, error) {
+
+// 	findResults, err = db.collection.Find(map[string]interface{}{
+// 		inventory.SKU: map[string]interface{}{
+// 			"$eq": &v.SearchVal,
+// 		},
+// 	})
 // }
 
 // Collection returns the currrent MongoDB collection being used for user-auth operations.

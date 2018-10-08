@@ -8,11 +8,11 @@ import (
 )
 
 // initKafkaIOLogin creates a KafkaIO from KafkaAdapter based on set environment variables.
-func initKafkaIOLogin() (*kafka.IO, error) {
+func initKafkaIOReport() (*kafka.IO, error) {
 	brokers := os.Getenv("KAFKA_BROKERS")
-	consumerGroupName := os.Getenv("KAFKA_CONSUMER_GROUP_LOGIN")
-	consumerTopics := os.Getenv("KAFKA_CONSUMER_TOPIC_LOGIN")
-	responseTopic := os.Getenv("KAFKA_PRODUCER_TOPIC_LOGIN")
+	consumerGroupName := os.Getenv("KAFKA_CONSUMER_GROUP_REPORT")
+	consumerTopics := os.Getenv("KAFKA_CONSUMER_TOPIC_REPORT")
+	responseTopic := os.Getenv("KAFKA_PRODUCER_TOPIC_REPORT")
 
 	kafkaAdapter := &kafka.Adapter{
 		Brokers:           *commonutil.ParseHosts(brokers),
