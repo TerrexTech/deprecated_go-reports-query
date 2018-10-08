@@ -96,18 +96,26 @@ func main() {
 		return
 	}
 
-	dbMetric, err := report.GenerateDB(configReport{
+	configReport = report.DBIConfig{
 		Collection: collectionMet,
-	}, &report.Metric{})
+	}
 
-	dbInventory, err := report.GenerateDB(configReport{
+	dbMetric, err := report.GenerateDB(configReport, &report.ConfigSchema{
+		Metric: &report.Metric{},
+	})
+
+	configReport = report.DBIConfig{
 		Collection: collectionInv,
-	}, &report.Inventory{})
+	}
+
+	dbInventory, err := report.GenerateDB(configReport, &report.ConfigSchema{
+		Inventory: &report.Inventory{},
+	})
 
 	db := DbCollections{
-		Report:    dbReport,
-		Metric:    dbMetric,
-		Inventory: dbInventory,
+		ReportColl:    dbReport,
+		MetricColl:    dbMetric,
+		InventoryColl: dbInventory,
 	}
 
 	kio, err := initKafkaIOReport()
@@ -165,7 +173,7 @@ func handleRequest(db DbCollections, kio *kafka.IO, msg *sarama.ConsumerMessage)
 	mReport := make([]byte, 1)
 	errStr := ""
 	//Create report data in db
-	reportData, err = db.Report.CreateReportData(numValues)
+	reportData, err := db.ReportColl.CreateReportData(numValues)
 	if err != nil {
 		err = errors.Wrap(err, "Error creating data")
 		log.Println(err)
@@ -173,7 +181,10 @@ func handleRequest(db DbCollections, kio *kafka.IO, msg *sarama.ConsumerMessage)
 		errStr = err.Error()
 	} else {
 		// Marshal Ethylene
-		mReport, err = report.MarshalJSON()
+		for _, v := range reportData {
+			mReport, err = v.MarshalJSON()
+		}
+		// mReport, err = report.MarshalJSON()
 		if err != nil {
 			err = errors.Wrap(err, "Error marshalling login-user into JSON")
 			log.Println(err)
