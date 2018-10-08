@@ -16,7 +16,7 @@ import (
 type ConfigSchema struct {
 	Report    *Report
 	Metric    *Metric
-	Inventory *Metric
+	Inventory *Inventory
 }
 
 // DBIConfig is the configuration for the authDB.
@@ -76,27 +76,27 @@ func GenerateDB(dbConfig DBIConfig, schema *ConfigSchema) (*DB, error) {
 		Timeout: 5000,
 	}
 
-	indexConfigs := []mongo.IndexConfig{
-		mongo.IndexConfig{
-			ColumnConfig: []mongo.IndexColumnConfig{
-				mongo.IndexColumnConfig{
-					Name: "item_id",
-				},
-			},
-			IsUnique: true,
-			Name:     "item_id_index",
-		},
-		mongo.IndexConfig{
-			ColumnConfig: []mongo.IndexColumnConfig{
-				mongo.IndexColumnConfig{
-					Name:        "timestamp",
-					IsDescOrder: true,
-				},
-			},
-			IsUnique: true,
-			Name:     "timestamp_index",
-		},
-	}
+	// indexConfigs := []mongo.IndexConfig{
+	// 	mongo.IndexConfig{
+	// 		ColumnConfig: []mongo.IndexColumnConfig{
+	// 			mongo.IndexColumnConfig{
+	// 				Name: "item_id",
+	// 			},
+	// 		},
+	// 		IsUnique: true,
+	// 		Name:     "item_id_index",
+	// 	},
+	// 	mongo.IndexConfig{
+	// 		ColumnConfig: []mongo.IndexColumnConfig{
+	// 			mongo.IndexColumnConfig{
+	// 				Name:        "timestamp",
+	// 				IsDescOrder: true,
+	// 			},
+	// 		},
+	// 		IsUnique: true,
+	// 		Name:     "timestamp_index",
+	// 	},
+	// }
 
 	// ====> Create New Collection
 	collConfig := &mongo.Collection{
@@ -104,7 +104,7 @@ func GenerateDB(dbConfig DBIConfig, schema *ConfigSchema) (*DB, error) {
 		Database:     dbConfig.Database,
 		Name:         dbConfig.Collection,
 		SchemaStruct: schema,
-		Indexes:      indexConfigs,
+		// Indexes:      indexConfigs,
 	}
 	c, err := mongo.EnsureCollection(collConfig)
 	if err != nil {
@@ -118,7 +118,7 @@ func GenerateDB(dbConfig DBIConfig, schema *ConfigSchema) (*DB, error) {
 
 // UserByUUID gets the User from DB using specified UUID.
 // An error is returned if no user is found.
-func (db *DB) CreateReportData(numOfVal int) (*[]Report, error) {
+func (db *DB) CreateReportData(numOfVal int) ([]Report, error) {
 	report := []Report{}
 	for i := 0; i < numOfVal; i++ {
 		generatedData := GenData()
@@ -134,7 +134,7 @@ func (db *DB) CreateReportData(numOfVal int) (*[]Report, error) {
 		}
 		log.Println(insertResult)
 	}
-	return &report, nil
+	return report, nil
 }
 
 func (db *DB) SearchByTimestamp(search []SearchByDate) (*[]Report, error) {

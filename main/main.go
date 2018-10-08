@@ -75,6 +75,7 @@ func main() {
 	// 	Inventory: collectionInv,
 	// }
 
+	log.Println(hosts)
 	configReport := report.DBIConfig{
 		Hosts:               *commonutil.ParseHosts(hosts),
 		Username:            username,
@@ -83,10 +84,12 @@ func main() {
 		Database:            database,
 	}
 
-	configReport = report.DBIConfig{
-		Collection: collectionReport,
-	}
+	// Re-assigning value here? The point was that when metric and inventory collections come in .. I can just assign new values for collection
+	// configReport = report.DBIConfig{
+	// }
 	// Init IO
+	// Thats how you do it... ok let
+	configReport.Collection = collectionReport //Set value here
 	dbReport, err := report.GenerateDB(configReport, &report.ConfigSchema{
 		Report: &report.Report{},
 	})
@@ -96,18 +99,12 @@ func main() {
 		return
 	}
 
-	configReport = report.DBIConfig{
-		Collection: collectionMet,
-	}
-
+	configReport.Collection = collectionMet
 	dbMetric, err := report.GenerateDB(configReport, &report.ConfigSchema{
 		Metric: &report.Metric{},
 	})
 
-	configReport = report.DBIConfig{
-		Collection: collectionInv,
-	}
-
+	configReport.Collection = collectionInv
 	dbInventory, err := report.GenerateDB(configReport, &report.ConfigSchema{
 		Inventory: &report.Inventory{},
 	})
